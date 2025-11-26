@@ -11,8 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Shield, LogOut, AlertCircle, Users } from "lucide-react";
+import { Shield, LogOut, AlertCircle, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { GameDetailsDialog } from "@/components/admin/GameDetailsDialog";
 
 interface Game {
   id: string;
@@ -28,6 +29,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -81,6 +83,7 @@ const AdminDashboard = () => {
     const { data: gamesData } = await supabase
       .from("games")
       .select("*")
+      .in("status", ["waiting", "playing"])
       .order("created_at", { ascending: false });
 
     if (gamesData) {
@@ -105,11 +108,6 @@ const AdminDashboard = () => {
     }
 
     setLoading(false);
-  };
-
-  const handleEndGame = async (gameId: string) => {
-    await supabase.from("games").update({ status: "finished" }).eq("id", gameId);
-    toast.success("Game ended");
   };
 
   const handleLogout = async () => {
@@ -206,15 +204,14 @@ const AdminDashboard = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        {game.status !== "finished" && (
-                          <Button
-                            onClick={() => handleEndGame(game.id)}
-                            variant="destructive"
-                            size="sm"
-                          >
-                            End Game
-                          </Button>
-                        )}
+                        <Button
+                          onClick={() => setSelectedGameId(game.id)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -223,6 +220,11 @@ const AdminDashboard = () => {
             </div>
           )}
         </Card>
+
+        <GameDetailsDialog
+          gameId={selectedGameId}
+          onClose={() => setSelectedGameId(null)}
+        />
       </div>
     </div>
   );
