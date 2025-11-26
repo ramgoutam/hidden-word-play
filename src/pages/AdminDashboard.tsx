@@ -87,8 +87,18 @@ const AdminDashboard = () => {
       .order("created_at", { ascending: false });
 
     if (gamesData) {
+      // Filter out games that have completed all rounds
+      const activeGames = gamesData.filter(
+        (game) =>
+          game.status === "waiting" ||
+          (game.status === "playing" &&
+            game.current_round &&
+            game.total_rounds &&
+            game.current_round <= game.total_rounds)
+      );
+
       const gamesWithDetails = await Promise.all(
-        gamesData.map(async (game) => {
+        activeGames.map(async (game) => {
           const { data: players } = await supabase
             .from("players")
             .select("*")
