@@ -31,6 +31,7 @@ const Game = () => {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -185,6 +186,22 @@ const Game = () => {
     }
   };
 
+  const handleRevealResults = () => {
+    setShowResults(true);
+  };
+
+  const handleEndGame = async () => {
+    if (!game) return;
+    
+    await supabase
+      .from("games")
+      .update({ status: "finished" })
+      .eq("id", game.id);
+    
+    toast.success("Game ended!");
+    setTimeout(() => navigate("/"), 2000);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -299,25 +316,71 @@ const Game = () => {
 
             <Card className="p-8">
               <h3 className="text-xl font-bold mb-4">Vote to Eliminate</h3>
-              {hasVoted && (
+              {hasVoted && !showResults && (
                 <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center">
                   <p className="text-sm font-medium text-primary">✓ You have cast your vote</p>
                 </div>
               )}
-              <div className="space-y-3">
+
+              {showResults && (
+                <div className="mb-6 p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/20 rounded-2xl">
+                  <h4 className="text-lg font-bold mb-4 text-center">Results</h4>
+                  {(() => {
+                    const imposter = players.find(p => p.is_imposter);
+                    const mostVoted = players
+                      .filter(p => !p.is_eliminated)
+                      .sort((a, b) => b.votes - a.votes)[0];
+                    const didWin = mostVoted?.id === imposter?.id;
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground mb-2">The Imposter was:</p>
+                          <p className="text-2xl font-bold text-destructive">{imposter?.name}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground mb-2">Most Voted:</p>
+                          <p className="text-xl font-bold">{mostVoted?.name} ({mostVoted?.votes} votes)</p>
+                        </div>
+                        <div className={`text-center p-4 rounded-lg ${didWin ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+                          <p className="text-lg font-bold">
+                            {didWin ? '🎉 Players Win!' : '😈 Imposter Wins!'}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              <div className="space-y-3 mb-6">
                 {players
                   .filter((p) => !p.is_eliminated)
-                  .map((player) => (
+                  .sort((a, b) => b.votes - a.votes)
+                  .map((player, index) => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between p-4 bg-secondary rounded-2xl"
+                      className={`flex items-center justify-between p-4 rounded-2xl ${
+                        showResults && player.is_imposter 
+                          ? 'bg-destructive/20 border-2 border-destructive' 
+                          : 'bg-secondary'
+                      }`}
                     >
-                      <span className="font-medium">{player.name}</span>
+                      <div className="flex items-center gap-3">
+                        {showResults && index === 0 && player.votes > 0 && (
+                          <span className="text-2xl">👑</span>
+                        )}
+                        <span className="font-medium">{player.name}</span>
+                        {showResults && player.is_imposter && (
+                          <span className="text-sm font-bold text-destructive">(IMPOSTER)</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-4">
-                        <span className="text-sm text-muted-foreground">
-                          {player.votes} votes
-                        </span>
-                        {player.id !== currentPlayer.id && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl font-bold text-primary">{player.votes}</span>
+                          <span className="text-sm text-muted-foreground">votes</span>
+                        </div>
+                        {!showResults && player.id !== currentPlayer.id && (
                           <Button
                             onClick={() => handleVote(player.id)}
                             variant="outline"
@@ -331,6 +394,50 @@ const Game = () => {
                     </div>
                   ))}
               </div>
+
+              {hostPlayerId && currentPlayer.id === hostPlayerId && !showResults && (
+                <Button 
+                  onClick={handleRevealResults} 
+                  className="w-full mb-3" 
+                  variant="secondary"
+                  size="lg"
+                >
+                  Reveal Results
+                </Button>
+              )}
+
+              {showResults && (
+                <div className="space-y-3">
+                  <Button 
+                    onClick={() => {
+                      setShowResults(false);
+                      setHasVoted(false);
+                      // Reset votes
+                      players.forEach(async (player) => {
+                        await supabase
+                          .from("players")
+                          .update({ votes: 0 })
+                          .eq("id", player.id);
+                      });
+                    }} 
+                    className="w-full" 
+                    variant="secondary"
+                    size="lg"
+                  >
+                    New Round
+                  </Button>
+                  {hostPlayerId && currentPlayer.id === hostPlayerId && (
+                    <Button 
+                      onClick={handleEndGame} 
+                      className="w-full" 
+                      variant="destructive"
+                      size="lg"
+                    >
+                      End Game
+                    </Button>
+                  )}
+                </div>
+              )}
             </Card>
           </>
         )}
