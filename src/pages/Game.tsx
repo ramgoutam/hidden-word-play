@@ -186,6 +186,7 @@ const Game = () => {
     );
   }
 
+
   if (!game || !currentPlayer) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -202,6 +203,12 @@ const Game = () => {
       </div>
     );
   }
+  const hostPlayerId =
+    players.length > 0 && game
+      ? players.some((p) => p.id === game.host_id)
+        ? game.host_id
+        : players[0].id
+      : null;
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -227,7 +234,7 @@ const Game = () => {
                   className="flex items-center justify-between p-4 bg-secondary rounded-2xl"
                 >
                   <div className="flex items-center gap-3">
-                    {player.id === game.host_id && (
+                    {hostPlayerId && player.id === hostPlayerId && (
                       <Crown className="w-5 h-5 text-primary" />
                     )}
                     <span className="font-medium">{player.name}</span>
@@ -239,7 +246,7 @@ const Game = () => {
               ))}
             </div>
 
-            {currentPlayer.id === game.host_id && players.length >= 3 && (
+            {hostPlayerId && currentPlayer.id === hostPlayerId && players.length >= 3 && (
               <Button onClick={handleStartGame} className="w-full" size="lg">
                 Start Game
               </Button>
