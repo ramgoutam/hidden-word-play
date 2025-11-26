@@ -30,6 +30,7 @@ const Game = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasVoted, setHasVoted] = useState(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -162,6 +163,11 @@ const Game = () => {
   };
 
   const handleVote = async (playerId: string) => {
+    if (hasVoted) {
+      toast.error("You have already voted!");
+      return;
+    }
+
     const { data: player } = await supabase
       .from("players")
       .select("votes")
@@ -174,6 +180,7 @@ const Game = () => {
         .update({ votes: player.votes + 1 })
         .eq("id", playerId);
 
+      setHasVoted(true);
       toast.success("Vote recorded!");
     }
   };
@@ -292,6 +299,11 @@ const Game = () => {
 
             <Card className="p-8">
               <h3 className="text-xl font-bold mb-4">Vote to Eliminate</h3>
+              {hasVoted && (
+                <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center">
+                  <p className="text-sm font-medium text-primary">✓ You have cast your vote</p>
+                </div>
+              )}
               <div className="space-y-3">
                 {players
                   .filter((p) => !p.is_eliminated)
@@ -310,6 +322,7 @@ const Game = () => {
                             onClick={() => handleVote(player.id)}
                             variant="outline"
                             size="sm"
+                            disabled={hasVoted}
                           >
                             Vote
                           </Button>
