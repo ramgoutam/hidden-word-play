@@ -88,7 +88,14 @@ const Game = () => {
         },
         (payload) => {
           console.log("Game updated:", payload.new);
-          setGame(payload.new as Game);
+          const updatedGame = payload.new as Game;
+          setGame(updatedGame);
+          
+          // Redirect all users to home when game ends
+          if (updatedGame.status === "finished") {
+            toast.success("Game ended!");
+            setTimeout(() => navigate("/"), 2000);
+          }
         }
       )
       .subscribe();
@@ -210,14 +217,33 @@ const Game = () => {
         .from("players")
         .update({ 
           is_imposter: i === imposterIndex,
-          votes: 0
+          votes: 0,
+          is_eliminated: false
         })
         .eq("id", players[i].id);
     }
 
+    // Reset local state
     setShowResults(false);
     setHasVoted(false);
     setCurrentTurn(0);
+    
+    // Force refresh players to ensure state is in sync
+    const { data: refreshedPlayers } = await supabase
+      .from("players")
+      .select("*")
+      .eq("game_id", game.id)
+      .order("created_at", { ascending: true });
+    
+    if (refreshedPlayers) {
+      setPlayers(refreshedPlayers);
+      const playerId = localStorage.getItem(`player_${roomCode}`);
+      const player = refreshedPlayers.find((p) => p.id === playerId);
+      if (player) {
+        setCurrentPlayer(player);
+      }
+    }
+    
     toast.success("New round started!");
   };
 
@@ -287,8 +313,7 @@ const Game = () => {
       .update({ status: "finished" })
       .eq("id", game.id);
     
-    toast.success("Game ended!");
-    setTimeout(() => navigate("/"), 2000);
+    // No need to navigate here - the subscription will handle it for all users
   };
 
   if (loading) {
@@ -426,26 +451,12 @@ const Game = () => {
                     .map((player, index) => (
                       <div
                         key={player.id}
-                        className={`px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${
-                          index === currentTurn
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-secondary'
-                        }`}
+                        className="px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap bg-secondary"
                       >
                         {index + 1}. {player.name}
                       </div>
                     ))}
                 </div>
-                {hostPlayerId && currentPlayer.id === hostPlayerId && (
-                  <Button
-                    onClick={() => setCurrentTurn((currentTurn + 1) % players.length)}
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-3"
-                  >
-                    Next Speaker
-                  </Button>
-                )}
               </div>
             </Card>
 
@@ -539,10 +550,12 @@ const Game = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-primary">{player.votes}</span>
-                          <span className="text-sm text-muted-foreground">votes</span>
-                        </div>
+                        {showResults && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl font-bold text-primary">{player.votes}</span>
+                            <span className="text-sm text-muted-foreground">votes</span>
+                          </div>
+                        )}
                         {!showResults && player.id !== currentPlayer.id && (
                           <Button
                             onClick={() => handleVote(player.id)}
