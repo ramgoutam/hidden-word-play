@@ -38,6 +38,7 @@ const Game = () => {
   const [showResults, setShowResults] = useState(false);
   const [selectedRounds, setSelectedRounds] = useState(3);
   const [currentTurn, setCurrentTurn] = useState(0);
+  const [roundTransitioning, setRoundTransitioning] = useState(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -89,7 +90,19 @@ const Game = () => {
         (payload) => {
           console.log("Game updated:", payload.new);
           const updatedGame = payload.new as Game;
+          const previousRound = game?.current_round;
+          
           setGame(updatedGame);
+          
+          // Reset voting state when round changes
+          if (previousRound && updatedGame.current_round !== previousRound) {
+            console.log("Round changed, resetting vote state");
+            setHasVoted(false);
+            setShowResults(false);
+            setRoundTransitioning(true);
+            // Clear transition state after a brief delay
+            setTimeout(() => setRoundTransitioning(false), 500);
+          }
           
           // Redirect all users to home when game ends
           if (updatedGame.status === "finished") {
@@ -161,6 +174,23 @@ const Game = () => {
     const word = words[category][Math.floor(Math.random() * words[category].length)];
     const imposterIndex = Math.floor(Math.random() * players.length);
 
+    // Set turn order, reset scores, and assign imposter FIRST
+    for (let i = 0; i < players.length; i++) {
+      await supabase
+        .from("players")
+        .update({ 
+          is_imposter: i === imposterIndex,
+          turn_order: i,
+          score: 0,
+          votes: 0
+        })
+        .eq("id", players[i].id);
+    }
+
+    // Small delay to ensure player updates propagate
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Then update game state
     await supabase
       .from("games")
       .update({ 
@@ -171,18 +201,6 @@ const Game = () => {
         current_round: 1
       })
       .eq("id", game.id);
-
-    // Set turn order and reset scores
-    for (let i = 0; i < players.length; i++) {
-      await supabase
-        .from("players")
-        .update({ 
-          is_imposter: i === imposterIndex,
-          turn_order: i,
-          score: 0
-        })
-        .eq("id", players[i].id);
-    }
 
     setCurrentTurn(0);
     toast.success("Game started!");
@@ -201,17 +219,9 @@ const Game = () => {
     const word = words[category][Math.floor(Math.random() * words[category].length)];
     const imposterIndex = Math.floor(Math.random() * players.length);
 
-    // Update game with new word and increment round
-    await supabase
-      .from("games")
-      .update({ 
-        secret_word: word, 
-        category,
-        current_round: game.current_round + 1
-      })
-      .eq("id", game.id);
+    setRoundTransitioning(true);
 
-    // Reset players for new round
+    // Reset players for new round FIRST
     for (let i = 0; i < players.length; i++) {
       await supabase
         .from("players")
@@ -223,28 +233,28 @@ const Game = () => {
         .eq("id", players[i].id);
     }
 
+    // Small delay to ensure player updates propagate
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Then update game with new word and increment round
+    await supabase
+      .from("games")
+      .update({ 
+        secret_word: word, 
+        category,
+        current_round: game.current_round + 1
+      })
+      .eq("id", game.id);
+
     // Reset local state
     setShowResults(false);
     setHasVoted(false);
     setCurrentTurn(0);
     
-    // Force refresh players to ensure state is in sync
-    const { data: refreshedPlayers } = await supabase
-      .from("players")
-      .select("*")
-      .eq("game_id", game.id)
-      .order("created_at", { ascending: true });
-    
-    if (refreshedPlayers) {
-      setPlayers(refreshedPlayers);
-      const playerId = localStorage.getItem(`player_${roomCode}`);
-      const player = refreshedPlayers.find((p) => p.id === playerId);
-      if (player) {
-        setCurrentPlayer(player);
-      }
-    }
-    
     toast.success("New round started!");
+    
+    // Clear transition state
+    setTimeout(() => setRoundTransitioning(false), 500);
   };
 
   const handleVote = async (playerId: string) => {
@@ -418,7 +428,7 @@ const Game = () => {
           </Card>
         )}
 
-        {game.status === "playing" && (
+        {game.status === "playing" && !roundTransitioning && (
           <>
             {/* Round and Score Display */}
             <Card className="p-4 mb-6">
@@ -610,6 +620,12 @@ const Game = () => {
               )}
             </Card>
           </>
+        )}
+
+        {game.status === "playing" && roundTransitioning && (
+          <Card className="p-8 text-center">
+            <p className="text-lg text-muted-foreground">Starting new round...</p>
+          </Card>
         )}
       </div>
     </div>
