@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Shield, LogOut, AlertCircle, Users, Eye } from "lucide-react";
+import { Shield, LogOut, AlertCircle, Users, Eye, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { GameDetailsDialog } from "@/components/admin/GameDetailsDialog";
 
@@ -120,6 +120,13 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
+  const handleCloseGame = async (gameId: string, roomCode: string) => {
+    if (confirm(`Are you sure you want to close game ${roomCode}?`)) {
+      await supabase.from("games").update({ status: "finished" }).eq("id", gameId);
+      toast.success("Game closed successfully");
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/admin/login");
@@ -214,14 +221,24 @@ const AdminDashboard = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          onClick={() => setSelectedGameId(game.id)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          View
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => setSelectedGameId(game.id)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View
+                          </Button>
+                          <Button
+                            onClick={() => handleCloseGame(game.id, game.room_code)}
+                            variant="destructive"
+                            size="sm"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Close
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
