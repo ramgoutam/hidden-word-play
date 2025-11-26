@@ -79,6 +79,7 @@ const Game = () => {
           filter: `room_code=eq.${roomCode.toUpperCase()}`,
         },
         (payload) => {
+          console.log("Game updated:", payload.new);
           setGame(payload.new as Game);
         }
       )
@@ -94,14 +95,34 @@ const Game = () => {
           schema: "public",
           table: "players",
         },
-        async () => {
-          const { data } = await supabase
-            .from("players")
+        async (payload) => {
+          console.log("Players changed:", payload);
+          // Fetch fresh player data when any change occurs
+          const { data: gameData } = await supabase
+            .from("games")
             .select("*")
-            .eq("game_id", game?.id)
-            .order("created_at", { ascending: true });
+            .eq("room_code", roomCode.toUpperCase())
+            .single();
 
-          if (data) setPlayers(data);
+          if (gameData) {
+            const { data: freshPlayers } = await supabase
+              .from("players")
+              .select("*")
+              .eq("game_id", gameData.id)
+              .order("created_at", { ascending: true });
+
+            if (freshPlayers) {
+              console.log("Updated players list:", freshPlayers);
+              setPlayers(freshPlayers);
+              
+              // Update current player if needed
+              const playerId = localStorage.getItem(`player_${roomCode}`);
+              const player = freshPlayers.find((p) => p.id === playerId);
+              if (player) {
+                setCurrentPlayer(player);
+              }
+            }
+          }
         }
       )
       .subscribe();
