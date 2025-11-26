@@ -12,6 +12,8 @@ interface Player {
   is_imposter: boolean;
   is_eliminated: boolean;
   votes: number;
+  score: number;
+  turn_order: number;
 }
 
 interface Game {
@@ -21,6 +23,8 @@ interface Game {
   secret_word: string | null;
   category: string | null;
   host_id: string;
+  total_rounds: number;
+  current_round: number;
 }
 
 const Game = () => {
@@ -32,6 +36,8 @@ const Game = () => {
   const [loading, setLoading] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [selectedRounds, setSelectedRounds] = useState(3);
+  const [currentTurn, setCurrentTurn] = useState(0);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -150,17 +156,69 @@ const Game = () => {
 
     await supabase
       .from("games")
-      .update({ status: "playing", secret_word: word, category })
+      .update({ 
+        status: "playing", 
+        secret_word: word, 
+        category,
+        total_rounds: selectedRounds,
+        current_round: 1
+      })
       .eq("id", game.id);
 
+    // Set turn order and reset scores
     for (let i = 0; i < players.length; i++) {
       await supabase
         .from("players")
-        .update({ is_imposter: i === imposterIndex })
+        .update({ 
+          is_imposter: i === imposterIndex,
+          turn_order: i,
+          score: 0
+        })
         .eq("id", players[i].id);
     }
 
+    setCurrentTurn(0);
     toast.success("Game started!");
+  };
+
+  const handleStartNewRound = async () => {
+    if (!game) return;
+
+    const words = {
+      Animals: ["Dog", "Cat", "Elephant", "Lion", "Tiger", "Bear", "Zebra", "Giraffe"],
+      Food: ["Pizza", "Burger", "Sushi", "Pasta", "Taco", "Salad", "Steak", "Soup"],
+      Objects: ["Car", "Phone", "Book", "Chair", "Table", "Lamp", "Clock", "Mirror"],
+    };
+
+    const category = Object.keys(words)[Math.floor(Math.random() * 3)] as keyof typeof words;
+    const word = words[category][Math.floor(Math.random() * words[category].length)];
+    const imposterIndex = Math.floor(Math.random() * players.length);
+
+    // Update game with new word and increment round
+    await supabase
+      .from("games")
+      .update({ 
+        secret_word: word, 
+        category,
+        current_round: game.current_round + 1
+      })
+      .eq("id", game.id);
+
+    // Reset players for new round
+    for (let i = 0; i < players.length; i++) {
+      await supabase
+        .from("players")
+        .update({ 
+          is_imposter: i === imposterIndex,
+          votes: 0
+        })
+        .eq("id", players[i].id);
+    }
+
+    setShowResults(false);
+    setHasVoted(false);
+    setCurrentTurn(0);
+    toast.success("New round started!");
   };
 
   const handleVote = async (playerId: string) => {
@@ -186,7 +244,38 @@ const Game = () => {
     }
   };
 
-  const handleRevealResults = () => {
+  const handleRevealResults = async () => {
+    if (!game) return;
+    
+    // Calculate scores
+    const imposter = players.find(p => p.is_imposter);
+    const mostVoted = players
+      .filter(p => !p.is_eliminated)
+      .sort((a, b) => b.votes - a.votes)[0];
+    
+    const didPlayersWin = mostVoted?.id === imposter?.id;
+    
+    // Award points
+    if (didPlayersWin) {
+      // Players win - everyone except imposter gets 10 points
+      for (const player of players) {
+        if (!player.is_imposter) {
+          await supabase
+            .from("players")
+            .update({ score: player.score + 10 })
+            .eq("id", player.id);
+        }
+      }
+    } else {
+      // Imposter wins - imposter gets 20 points
+      if (imposter) {
+        await supabase
+          .from("players")
+          .update({ score: imposter.score + 20 })
+          .eq("id", imposter.id);
+      }
+    }
+    
     setShowResults(true);
   };
 
@@ -270,10 +359,30 @@ const Game = () => {
               ))}
             </div>
 
-            {hostPlayerId && currentPlayer.id === hostPlayerId && players.length >= 3 && (
-              <Button onClick={handleStartGame} className="w-full" size="lg">
-                Start Game
-              </Button>
+            {hostPlayerId && currentPlayer.id === hostPlayerId && (
+              <>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-3">Number of Rounds</label>
+                  <div className="flex gap-2">
+                    {[3, 5, 7, 10].map((num) => (
+                      <Button
+                        key={num}
+                        variant={selectedRounds === num ? "default" : "outline"}
+                        onClick={() => setSelectedRounds(num)}
+                        className="flex-1"
+                      >
+                        {num}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {players.length >= 3 && (
+                  <Button onClick={handleStartGame} className="w-full" size="lg">
+                    Start Game
+                  </Button>
+                )}
+              </>
             )}
 
             {players.length < 3 && (
@@ -286,6 +395,60 @@ const Game = () => {
 
         {game.status === "playing" && (
           <>
+            {/* Round and Score Display */}
+            <Card className="p-4 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Round</p>
+                  <p className="text-2xl font-bold">{game.current_round} / {game.total_rounds}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground mb-2">Scores</p>
+                  <div className="flex gap-3 flex-wrap justify-end">
+                    {players
+                      .sort((a, b) => b.score - a.score)
+                      .map((player) => (
+                        <div key={player.id} className="text-center">
+                          <p className="text-xs font-medium truncate max-w-[80px]">{player.name}</p>
+                          <p className="text-lg font-bold text-primary">{player.score}</p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Turn Order */}
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground mb-2">Speaking Order</p>
+                <div className="flex gap-2 overflow-x-auto">
+                  {players
+                    .sort((a, b) => a.turn_order - b.turn_order)
+                    .map((player, index) => (
+                      <div
+                        key={player.id}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${
+                          index === currentTurn
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary'
+                        }`}
+                      >
+                        {index + 1}. {player.name}
+                      </div>
+                    ))}
+                </div>
+                {hostPlayerId && currentPlayer.id === hostPlayerId && (
+                  <Button
+                    onClick={() => setCurrentTurn((currentTurn + 1) % players.length)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-3"
+                  >
+                    Next Speaker
+                  </Button>
+                )}
+              </div>
+            </Card>
+
             <Card className="p-8 mb-8">
               {currentPlayer.is_imposter ? (
                 <div className="text-center">
@@ -406,36 +569,30 @@ const Game = () => {
                 </Button>
               )}
 
-              {showResults && (
+              {showResults && hostPlayerId && currentPlayer.id === hostPlayerId && (
                 <div className="space-y-3">
-                  <Button 
-                    onClick={() => {
-                      setShowResults(false);
-                      setHasVoted(false);
-                      // Reset votes
-                      players.forEach(async (player) => {
-                        await supabase
-                          .from("players")
-                          .update({ votes: 0 })
-                          .eq("id", player.id);
-                      });
-                    }} 
-                    className="w-full" 
-                    variant="secondary"
-                    size="lg"
-                  >
-                    New Round
-                  </Button>
-                  {hostPlayerId && currentPlayer.id === hostPlayerId && (
+                  {game.current_round < game.total_rounds ? (
                     <Button 
-                      onClick={handleEndGame} 
+                      onClick={handleStartNewRound} 
                       className="w-full" 
-                      variant="destructive"
                       size="lg"
                     >
-                      End Game
+                      Start Round {game.current_round + 1}
                     </Button>
+                  ) : (
+                    <div className="text-center p-4 bg-primary/10 rounded-lg mb-3">
+                      <p className="text-lg font-bold">Game Complete!</p>
+                      <p className="text-sm text-muted-foreground">Final Scores Above</p>
+                    </div>
                   )}
+                  <Button 
+                    onClick={handleEndGame} 
+                    className="w-full" 
+                    variant="destructive"
+                    size="lg"
+                  >
+                    End Game
+                  </Button>
                 </div>
               )}
             </Card>

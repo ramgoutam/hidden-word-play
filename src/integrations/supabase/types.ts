@@ -18,31 +18,37 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string | null
+          current_round: number | null
           host_id: string
           id: string
           room_code: string
           secret_word: string | null
           status: Database["public"]["Enums"]["game_status"]
+          total_rounds: number | null
           updated_at: string | null
         }
         Insert: {
           category?: string | null
           created_at?: string | null
+          current_round?: number | null
           host_id: string
           id?: string
           room_code: string
           secret_word?: string | null
           status?: Database["public"]["Enums"]["game_status"]
+          total_rounds?: number | null
           updated_at?: string | null
         }
         Update: {
           category?: string | null
           created_at?: string | null
+          current_round?: number | null
           host_id?: string
           id?: string
           room_code?: string
           secret_word?: string | null
           status?: Database["public"]["Enums"]["game_status"]
+          total_rounds?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -55,6 +61,8 @@ export type Database = {
           is_eliminated: boolean | null
           is_imposter: boolean | null
           name: string
+          score: number | null
+          turn_order: number | null
           votes: number | null
         }
         Insert: {
@@ -64,6 +72,8 @@ export type Database = {
           is_eliminated?: boolean | null
           is_imposter?: boolean | null
           name: string
+          score?: number | null
+          turn_order?: number | null
           votes?: number | null
         }
         Update: {
@@ -73,6 +83,8 @@ export type Database = {
           is_eliminated?: boolean | null
           is_imposter?: boolean | null
           name?: string
+          score?: number | null
+          turn_order?: number | null
           votes?: number | null
         }
         Relationships: [
