@@ -14,6 +14,7 @@ interface Player {
   votes: number;
   score: number;
   turn_order: number;
+  has_voted: boolean;
 }
 
 interface Game {
@@ -34,7 +35,6 @@ const Game = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasVoted, setHasVoted] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [selectedRounds, setSelectedRounds] = useState(3);
   const [currentTurn, setCurrentTurn] = useState(0);
@@ -97,7 +97,6 @@ const Game = () => {
           // Reset voting state when round changes
           if (previousRound && updatedGame.current_round !== previousRound) {
             console.log("Round changed, resetting vote state");
-            setHasVoted(false);
             setShowResults(false);
             setRoundTransitioning(true);
             // Clear transition state after a brief delay
@@ -182,7 +181,8 @@ const Game = () => {
           is_imposter: i === imposterIndex,
           turn_order: i,
           score: 0,
-          votes: 0
+          votes: 0,
+          has_voted: false
         })
         .eq("id", players[i].id);
     }
@@ -228,7 +228,8 @@ const Game = () => {
         .update({ 
           is_imposter: i === imposterIndex,
           votes: 0,
-          is_eliminated: false
+          is_eliminated: false,
+          has_voted: false
         })
         .eq("id", players[i].id);
     }
@@ -248,7 +249,6 @@ const Game = () => {
 
     // Reset local state
     setShowResults(false);
-    setHasVoted(false);
     setCurrentTurn(0);
     
     toast.success("New round started!");
@@ -258,7 +258,7 @@ const Game = () => {
   };
 
   const handleVote = async (playerId: string) => {
-    if (hasVoted) {
+    if (!currentPlayer || currentPlayer.has_voted) {
       toast.error("You have already voted!");
       return;
     }
@@ -270,12 +270,17 @@ const Game = () => {
       .single();
 
     if (player) {
+      // Update both the voted player's vote count and current player's has_voted status
       await supabase
         .from("players")
         .update({ votes: player.votes + 1 })
         .eq("id", playerId);
 
-      setHasVoted(true);
+      await supabase
+        .from("players")
+        .update({ has_voted: true })
+        .eq("id", currentPlayer.id);
+
       toast.success("Vote recorded!");
     }
   };
@@ -500,7 +505,7 @@ const Game = () => {
 
             <Card className="p-8">
               <h3 className="text-xl font-bold mb-4">Vote to Eliminate</h3>
-              {hasVoted && !showResults && (
+              {currentPlayer?.has_voted && !showResults && (
                 <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center">
                   <p className="text-sm font-medium text-primary">✓ You have cast your vote</p>
                 </div>
@@ -555,6 +560,9 @@ const Game = () => {
                           <span className="text-2xl">👑</span>
                         )}
                         <span className="font-medium">{player.name}</span>
+                        {!showResults && player.has_voted && (
+                          <span className="text-sm text-green-600 font-medium">✓ Voted</span>
+                        )}
                         {showResults && player.is_imposter && (
                           <span className="text-sm font-bold text-destructive">(IMPOSTER)</span>
                         )}
@@ -571,7 +579,7 @@ const Game = () => {
                             onClick={() => handleVote(player.id)}
                             variant="outline"
                             size="sm"
-                            disabled={hasVoted}
+                            disabled={currentPlayer?.has_voted}
                           >
                             Vote
                           </Button>
@@ -587,8 +595,9 @@ const Game = () => {
                   className="w-full mb-3" 
                   variant="secondary"
                   size="lg"
+                  disabled={!players.filter(p => !p.is_eliminated).every(p => p.has_voted)}
                 >
-                  Reveal Results
+                  Reveal Results {!players.filter(p => !p.is_eliminated).every(p => p.has_voted) && `(${players.filter(p => !p.is_eliminated && p.has_voted).length}/${players.filter(p => !p.is_eliminated).length} voted)`}
                 </Button>
               )}
 
