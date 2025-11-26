@@ -57,6 +57,7 @@ export type Database = {
         Row: {
           created_at: string | null
           game_id: string
+          has_voted: boolean | null
           id: string
           is_eliminated: boolean | null
           is_imposter: boolean | null
@@ -68,6 +69,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           game_id: string
+          has_voted?: boolean | null
           id?: string
           is_eliminated?: boolean | null
           is_imposter?: boolean | null
@@ -79,6 +81,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           game_id?: string
+          has_voted?: boolean | null
           id?: string
           is_eliminated?: boolean | null
           is_imposter?: boolean | null
