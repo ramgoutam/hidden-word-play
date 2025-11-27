@@ -36,6 +36,7 @@ interface Game {
   host_id: string;
   total_rounds: number;
   current_round: number;
+  used_words?: string[];
 }
 
 const Game = () => {
@@ -176,13 +177,43 @@ const Game = () => {
     if (!game || !currentPlayer) return;
 
     const words = {
-      Animals: ["Dog", "Cat", "Elephant", "Lion", "Tiger", "Bear", "Zebra", "Giraffe"],
-      Food: ["Pizza", "Burger", "Sushi", "Pasta", "Taco", "Salad", "Steak", "Soup"],
-      Objects: ["Car", "Phone", "Book", "Chair", "Table", "Lamp", "Clock", "Mirror"],
+      Animals: [
+        "Dog", "Cat", "Elephant", "Lion", "Tiger", "Bear", "Zebra", "Giraffe",
+        "Monkey", "Penguin", "Dolphin", "Eagle", "Wolf", "Fox", "Rabbit", "Deer",
+        "Kangaroo", "Panda", "Koala", "Owl", "Peacock", "Flamingo", "Crocodile", "Hippo"
+      ],
+      Food: [
+        "Pizza", "Burger", "Sushi", "Pasta", "Taco", "Salad", "Steak", "Soup",
+        "Sandwich", "Curry", "Ramen", "Burrito", "Lasagna", "Dumpling", "Pancake", "Waffle",
+        "Omelette", "Kebab", "Noodles", "Rice", "Bread", "Cheese", "Chocolate", "Cookie"
+      ],
+      Objects: [
+        "Car", "Phone", "Book", "Chair", "Table", "Lamp", "Clock", "Mirror",
+        "Pen", "Laptop", "Watch", "Key", "Wallet", "Glasses", "Umbrella", "Backpack",
+        "Camera", "Headphones", "Guitar", "Piano", "Bicycle", "Skateboard", "Ball", "Bottle"
+      ],
     };
 
-    const category = Object.keys(words)[Math.floor(Math.random() * 3)] as keyof typeof words;
-    const word = words[category][Math.floor(Math.random() * words[category].length)];
+    // Get used words from the game
+    const usedWords = game.used_words || [];
+    
+    // Filter available words by removing used ones
+    const availableWordsByCategory = Object.entries(words).reduce((acc, [cat, wordList]) => {
+      acc[cat as keyof typeof words] = wordList.filter(w => !usedWords.includes(w));
+      return acc;
+    }, {} as typeof words);
+
+    // Check if we have any words left, if not reset
+    const totalAvailable = Object.values(availableWordsByCategory).flat().length;
+    const wordsToUse = totalAvailable > 0 ? availableWordsByCategory : words;
+    const shouldResetUsedWords = totalAvailable === 0;
+
+    // Select random category and word
+    const categories = Object.keys(wordsToUse) as (keyof typeof words)[];
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const categoryWords = wordsToUse[category];
+    const word = categoryWords[Math.floor(Math.random() * categoryWords.length)];
+    
     const imposterIndex = Math.floor(Math.random() * players.length);
 
     // Set turn order, reset scores, and assign imposter FIRST
@@ -202,6 +233,9 @@ const Game = () => {
     // Small delay to ensure player updates propagate
     await new Promise(resolve => setTimeout(resolve, 300));
 
+    // Update used words array
+    const newUsedWords = shouldResetUsedWords ? [word] : [...usedWords, word];
+
     // Then update game state
     await supabase
       .from("games")
@@ -210,7 +244,8 @@ const Game = () => {
         secret_word: word, 
         category,
         total_rounds: selectedRounds,
-        current_round: 1
+        current_round: 1,
+        used_words: newUsedWords
       })
       .eq("id", game.id);
 
@@ -222,13 +257,43 @@ const Game = () => {
     if (!game) return;
 
     const words = {
-      Animals: ["Dog", "Cat", "Elephant", "Lion", "Tiger", "Bear", "Zebra", "Giraffe"],
-      Food: ["Pizza", "Burger", "Sushi", "Pasta", "Taco", "Salad", "Steak", "Soup"],
-      Objects: ["Car", "Phone", "Book", "Chair", "Table", "Lamp", "Clock", "Mirror"],
+      Animals: [
+        "Dog", "Cat", "Elephant", "Lion", "Tiger", "Bear", "Zebra", "Giraffe",
+        "Monkey", "Penguin", "Dolphin", "Eagle", "Wolf", "Fox", "Rabbit", "Deer",
+        "Kangaroo", "Panda", "Koala", "Owl", "Peacock", "Flamingo", "Crocodile", "Hippo"
+      ],
+      Food: [
+        "Pizza", "Burger", "Sushi", "Pasta", "Taco", "Salad", "Steak", "Soup",
+        "Sandwich", "Curry", "Ramen", "Burrito", "Lasagna", "Dumpling", "Pancake", "Waffle",
+        "Omelette", "Kebab", "Noodles", "Rice", "Bread", "Cheese", "Chocolate", "Cookie"
+      ],
+      Objects: [
+        "Car", "Phone", "Book", "Chair", "Table", "Lamp", "Clock", "Mirror",
+        "Pen", "Laptop", "Watch", "Key", "Wallet", "Glasses", "Umbrella", "Backpack",
+        "Camera", "Headphones", "Guitar", "Piano", "Bicycle", "Skateboard", "Ball", "Bottle"
+      ],
     };
 
-    const category = Object.keys(words)[Math.floor(Math.random() * 3)] as keyof typeof words;
-    const word = words[category][Math.floor(Math.random() * words[category].length)];
+    // Get used words from the game
+    const usedWords = game.used_words || [];
+    
+    // Filter available words by removing used ones
+    const availableWordsByCategory = Object.entries(words).reduce((acc, [cat, wordList]) => {
+      acc[cat as keyof typeof words] = wordList.filter(w => !usedWords.includes(w));
+      return acc;
+    }, {} as typeof words);
+
+    // Check if we have any words left, if not reset
+    const totalAvailable = Object.values(availableWordsByCategory).flat().length;
+    const wordsToUse = totalAvailable > 0 ? availableWordsByCategory : words;
+    const shouldResetUsedWords = totalAvailable === 0;
+
+    // Select random category and word
+    const categories = Object.keys(wordsToUse) as (keyof typeof words)[];
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const categoryWords = wordsToUse[category];
+    const word = categoryWords[Math.floor(Math.random() * categoryWords.length)];
+    
     const imposterIndex = Math.floor(Math.random() * players.length);
 
     setRoundTransitioning(true);
@@ -249,13 +314,17 @@ const Game = () => {
     // Small delay to ensure player updates propagate
     await new Promise(resolve => setTimeout(resolve, 300));
 
+    // Update used words array
+    const newUsedWords = shouldResetUsedWords ? [word] : [...usedWords, word];
+
     // Then update game with new word and increment round
     await supabase
       .from("games")
       .update({ 
         secret_word: word, 
         category,
-        current_round: game.current_round + 1
+        current_round: game.current_round + 1,
+        used_words: newUsedWords
       })
       .eq("id", game.id);
 
