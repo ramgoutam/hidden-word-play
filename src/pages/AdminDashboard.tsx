@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Shield, LogOut, AlertCircle, Users, Eye, Trash2 } from "lucide-react";
+import { Shield, LogOut, AlertCircle, Users, Eye, Trash2, TrendingUp, BarChart3, Award } from "lucide-react";
 import { toast } from "sonner";
 import { GameDetailsDialog } from "@/components/admin/GameDetailsDialog";
 
@@ -25,15 +25,27 @@ interface Game {
   imposter_name: string | null;
 }
 
+interface GameStats {
+  totalGamesToday: number;
+  averagePlayersPerGame: number;
+  popularCategories: { category: string; count: number }[];
+}
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [stats, setStats] = useState<GameStats>({
+    totalGamesToday: 0,
+    averagePlayersPerGame: 0,
+    popularCategories: [],
+  });
 
   useEffect(() => {
     checkAuth();
     fetchGames();
+    fetchStats();
 
     const channel = supabase
       .channel("admin-games")
@@ -49,9 +61,11 @@ const AdminDashboard = () => {
           // If a game is finished, remove it immediately from the list
           if (payload.eventType === "UPDATE" && payload.new && (payload.new as any).status === "finished") {
             setGames((prevGames) => prevGames.filter((g) => g.id !== (payload.new as any).id));
+            fetchStats(); // Update stats when game finishes
           } else {
             // For other changes, refetch to get updated data
             fetchGames();
+            fetchStats();
           }
         }
       )
@@ -73,6 +87,7 @@ const AdminDashboard = () => {
     // Periodic refresh every 5 seconds to ensure data accuracy
     const interval = setInterval(() => {
       fetchGames();
+      fetchStats();
     }, 5000);
 
     return () => {
@@ -154,6 +169,63 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
+  const fetchStats = async () => {
+    try {
+      // Get today's date at midnight
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Fetch all games created today
+      const { data: todayGames, error } = await supabase
+        .from("games")
+        .select("id, category, created_at")
+        .gte("created_at", today.toISOString());
+
+      if (error) {
+        console.error("Error fetching stats:", error);
+        return;
+      }
+
+      if (todayGames) {
+        const totalGamesToday = todayGames.length;
+
+        // Calculate average players per game
+        let totalPlayers = 0;
+        for (const game of todayGames) {
+          const { data: players } = await supabase
+            .from("players")
+            .select("id")
+            .eq("game_id", game.id);
+          totalPlayers += players?.length || 0;
+        }
+        const averagePlayersPerGame = totalGamesToday > 0 
+          ? Math.round((totalPlayers / totalGamesToday) * 10) / 10 
+          : 0;
+
+        // Calculate popular categories
+        const categoryCounts: Record<string, number> = {};
+        todayGames.forEach((game) => {
+          if (game.category) {
+            categoryCounts[game.category] = (categoryCounts[game.category] || 0) + 1;
+          }
+        });
+
+        const popularCategories = Object.entries(categoryCounts)
+          .map(([category, count]) => ({ category, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 3);
+
+        setStats({
+          totalGamesToday,
+          averagePlayersPerGame,
+          popularCategories,
+        });
+      }
+    } catch (error) {
+      console.error("Error in fetchStats:", error);
+    }
+  };
+
   const handleCloseGame = async (gameId: string, roomCode: string) => {
     if (confirm(`Are you sure you want to close game ${roomCode}?`)) {
       const { error } = await supabase
@@ -198,6 +270,56 @@ const AdminDashboard = () => {
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Games Today</p>
+                <p className="text-3xl font-bold">{stats.totalGamesToday}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Users className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Avg Players/Game</p>
+                <p className="text-3xl font-bold">{stats.averagePlayersPerGame}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Award className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Popular Categories</p>
+                {stats.popularCategories.length > 0 ? (
+                  <div className="space-y-1">
+                    {stats.popularCategories.map((cat) => (
+                      <div key={cat.category} className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{cat.category}</span>
+                        <span className="text-xs text-muted-foreground">({cat.count})</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No data yet</p>
+                )}
+              </div>
+            </div>
+          </Card>
         </div>
 
         <Card className="p-6">
