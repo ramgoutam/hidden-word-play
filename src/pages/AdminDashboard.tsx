@@ -44,14 +44,40 @@ const AdminDashboard = () => {
           schema: "public",
           table: "games",
         },
+        (payload) => {
+          console.log("Game change detected:", payload);
+          // If a game is finished, remove it immediately from the list
+          if (payload.eventType === "UPDATE" && payload.new && (payload.new as any).status === "finished") {
+            setGames((prevGames) => prevGames.filter((g) => g.id !== (payload.new as any).id));
+          } else {
+            // For other changes, refetch to get updated data
+            fetchGames();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "players",
+        },
         () => {
+          // When players join/leave, refresh the list
+          console.log("Player change detected, refreshing games");
           fetchGames();
         }
       )
       .subscribe();
 
+    // Periodic refresh every 5 seconds to ensure data accuracy
+    const interval = setInterval(() => {
+      fetchGames();
+    }, 5000);
+
     return () => {
       channel.unsubscribe();
+      clearInterval(interval);
     };
   }, []);
 
@@ -80,41 +106,49 @@ const AdminDashboard = () => {
   };
 
   const fetchGames = async () => {
-    const { data: gamesData } = await supabase
-      .from("games")
-      .select("*")
-      .in("status", ["waiting", "playing"])
-      .order("created_at", { ascending: false });
+    try {
+      const { data: gamesData, error } = await supabase
+        .from("games")
+        .select("*")
+        .in("status", ["waiting", "playing"])
+        .order("created_at", { ascending: false });
 
-    if (gamesData) {
-      // Filter out games that have completed all rounds
-      const activeGames = gamesData.filter(
-        (game) =>
-          game.status === "waiting" ||
-          (game.status === "playing" &&
-            game.current_round &&
-            game.total_rounds &&
-            game.current_round <= game.total_rounds)
-      );
+      if (error) {
+        console.error("Error fetching games:", error);
+        setLoading(false);
+        return;
+      }
 
-      const gamesWithDetails = await Promise.all(
-        activeGames.map(async (game) => {
-          const { data: players } = await supabase
-            .from("players")
-            .select("*")
-            .eq("game_id", game.id);
+      if (gamesData) {
+        // Only include truly active games (waiting or playing)
+        const activeGames = gamesData.filter(
+          (game) =>
+            game.status === "waiting" || game.status === "playing"
+        );
 
-          const imposter = players?.find((p) => p.is_imposter);
+        console.log("Active games found:", activeGames.length);
 
-          return {
-            ...game,
-            player_count: players?.length || 0,
-            imposter_name: imposter?.name || null,
-          };
-        })
-      );
+        const gamesWithDetails = await Promise.all(
+          activeGames.map(async (game) => {
+            const { data: players } = await supabase
+              .from("players")
+              .select("*")
+              .eq("game_id", game.id);
 
-      setGames(gamesWithDetails);
+            const imposter = players?.find((p) => p.is_imposter);
+
+            return {
+              ...game,
+              player_count: players?.length || 0,
+              imposter_name: imposter?.name || null,
+            };
+          })
+        );
+
+        setGames(gamesWithDetails);
+      }
+    } catch (error) {
+      console.error("Error in fetchGames:", error);
     }
 
     setLoading(false);
@@ -122,8 +156,19 @@ const AdminDashboard = () => {
 
   const handleCloseGame = async (gameId: string, roomCode: string) => {
     if (confirm(`Are you sure you want to close game ${roomCode}?`)) {
-      await supabase.from("games").update({ status: "finished" }).eq("id", gameId);
-      toast.success("Game closed successfully");
+      const { error } = await supabase
+        .from("games")
+        .update({ status: "finished" })
+        .eq("id", gameId);
+
+      if (error) {
+        console.error("Error closing game:", error);
+        toast.error("Failed to close game");
+      } else {
+        // Immediately remove from local state
+        setGames((prevGames) => prevGames.filter((g) => g.id !== gameId));
+        toast.success("Game closed successfully");
+      }
     }
   };
 
