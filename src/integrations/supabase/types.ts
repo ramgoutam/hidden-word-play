@@ -21,6 +21,7 @@ export type Database = {
           current_round: number | null
           host_id: string
           id: string
+          results_revealed: boolean | null
           room_code: string
           secret_word: string | null
           status: Database["public"]["Enums"]["game_status"]
@@ -34,6 +35,7 @@ export type Database = {
           current_round?: number | null
           host_id: string
           id?: string
+          results_revealed?: boolean | null
           room_code: string
           secret_word?: string | null
           status?: Database["public"]["Enums"]["game_status"]
@@ -47,6 +49,7 @@ export type Database = {
           current_round?: number | null
           host_id?: string
           id?: string
+          results_revealed?: boolean | null
           room_code?: string
           secret_word?: string | null
           status?: Database["public"]["Enums"]["game_status"]

@@ -37,6 +37,7 @@ interface Game {
   total_rounds: number;
   current_round: number;
   used_words?: string[];
+  results_revealed: boolean;
 }
 
 const Game = () => {
@@ -70,6 +71,7 @@ const Game = () => {
       }
 
       setGame(gameData);
+      setShowResults(gameData.results_revealed || false);
 
       const { data: playersData } = await supabase
         .from("players")
@@ -106,11 +108,11 @@ const Game = () => {
           const previousRound = game?.current_round;
           
           setGame(updatedGame);
+          setShowResults(updatedGame.results_revealed || false);
           
           // Reset voting state when round changes
           if (previousRound && updatedGame.current_round !== previousRound) {
             console.log("Round changed, resetting vote state");
-            setShowResults(false);
             setRoundTransitioning(true);
             // Clear transition state after a brief delay
             setTimeout(() => setRoundTransitioning(false), 500);
@@ -324,12 +326,12 @@ const Game = () => {
         secret_word: word, 
         category,
         current_round: game.current_round + 1,
-        used_words: newUsedWords
+        used_words: newUsedWords,
+        results_revealed: false
       })
       .eq("id", game.id);
 
     // Reset local state
-    setShowResults(false);
     setCurrentTurn(0);
     
     toast.success("New round started!");
@@ -398,7 +400,11 @@ const Game = () => {
       }
     }
     
-    setShowResults(true);
+    // Set results_revealed in database so all players see results
+    await supabase
+      .from("games")
+      .update({ results_revealed: true })
+      .eq("id", game.id);
   };
 
   const handleEndGame = async () => {
