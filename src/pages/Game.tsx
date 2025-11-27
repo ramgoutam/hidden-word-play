@@ -3,6 +3,16 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Users, Crown, AlertCircle, Copy, Link as LinkIcon, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,6 +49,8 @@ const Game = () => {
   const [selectedRounds, setSelectedRounds] = useState(3);
   const [currentTurn, setCurrentTurn] = useState(0);
   const [roundTransitioning, setRoundTransitioning] = useState(false);
+  const [showEndGameDialog, setShowEndGameDialog] = useState(false);
+  const [showLeaveGameDialog, setShowLeaveGameDialog] = useState(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -328,6 +340,7 @@ const Game = () => {
       .update({ status: "finished" })
       .eq("id", game.id);
     
+    setShowEndGameDialog(false);
     // No need to navigate here - the subscription will handle it for all users
   };
 
@@ -401,7 +414,7 @@ const Game = () => {
               </div>
               {hostPlayerId && currentPlayer.id === hostPlayerId ? (
                 <Button 
-                  onClick={handleEndGame} 
+                  onClick={() => setShowEndGameDialog(true)} 
                   variant="destructive"
                   size="sm"
                 >
@@ -409,7 +422,7 @@ const Game = () => {
                 </Button>
               ) : (
                 <Button 
-                  onClick={handleLeaveGame} 
+                  onClick={() => setShowLeaveGameDialog(true)} 
                   variant="outline"
                   size="sm"
                 >
@@ -694,6 +707,42 @@ const Game = () => {
             <p className="text-lg text-muted-foreground">Starting new round...</p>
           </Card>
         )}
+
+        {/* End Game Confirmation Dialog */}
+        <AlertDialog open={showEndGameDialog} onOpenChange={setShowEndGameDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>End Game?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will end the game for all players. Everyone will be returned to the home page. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleEndGame} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                End Game
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Leave Game Confirmation Dialog */}
+        <AlertDialog open={showLeaveGameDialog} onOpenChange={setShowLeaveGameDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Leave Game?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You will be removed from this game and returned to the home page. You can rejoin using the room code if the game is still open.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleLeaveGame}>
+                Leave Game
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
