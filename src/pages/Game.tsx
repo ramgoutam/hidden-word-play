@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Users, Crown, AlertCircle, Copy, Link as LinkIcon, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { sounds } from "@/lib/sounds";
 
 interface Player {
   id: string;
@@ -400,6 +401,17 @@ const Game = () => {
       }
     }
     
+    // Play dramatic sound effects
+    sounds.drumRoll();
+    setTimeout(() => sounds.reveal(), 1600);
+    setTimeout(() => {
+      if (didPlayersWin) {
+        sounds.victory();
+      } else {
+        sounds.defeat();
+      }
+    }, 2000);
+    
     // Set results_revealed in database so all players see results
     await supabase
       .from("games")
@@ -658,8 +670,8 @@ const Game = () => {
               )}
 
               {showResults && (
-                <div className="mb-6 p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/20 rounded-2xl">
-                  <h4 className="text-lg font-bold mb-4 text-center">Results</h4>
+                <div className="mb-6 p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/20 rounded-2xl animate-scale-in">
+                  <h4 className="text-lg font-bold mb-4 text-center animate-fade-in">Results</h4>
                   {(() => {
                     const imposter = players.find(p => p.is_imposter);
                     const mostVoted = players
@@ -669,15 +681,22 @@ const Game = () => {
 
                     return (
                       <div className="space-y-4">
-                        <div className="text-center">
+                        <div className="text-center animate-fade-in" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
                           <p className="text-sm text-muted-foreground mb-2">The Imposter was:</p>
-                          <p className="text-2xl font-bold text-destructive">{imposter?.name}</p>
+                          <p className="text-2xl font-bold text-destructive animate-pulse">{imposter?.name}</p>
                         </div>
-                        <div className="text-center">
+                        <div className="text-center animate-fade-in" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
                           <p className="text-sm text-muted-foreground mb-2">Most Voted:</p>
                           <p className="text-xl font-bold">{mostVoted?.name} ({mostVoted?.votes} votes)</p>
                         </div>
-                        <div className={`text-center p-4 rounded-lg ${didWin ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+                        <div 
+                          className={`text-center p-4 rounded-lg animate-scale-in transition-all duration-500 ${
+                            didWin 
+                              ? 'bg-green-500/20 border border-green-500/30' 
+                              : 'bg-red-500/20 border border-red-500/30'
+                          }`}
+                          style={{ animationDelay: '0.6s', animationFillMode: 'both' }}
+                        >
                           <p className="text-lg font-bold">
                             {didWin ? '🎉 Players Win!' : '😈 Imposter Wins!'}
                           </p>
@@ -695,11 +714,12 @@ const Game = () => {
                   .map((player, index) => (
                     <div
                       key={player.id}
-                      className={`flex items-center justify-between p-4 rounded-2xl ${
+                      className={`flex items-center justify-between p-4 rounded-2xl transition-all duration-300 ${
                         showResults && player.is_imposter 
-                          ? 'bg-destructive/20 border-2 border-destructive' 
+                          ? 'bg-destructive/20 border-2 border-destructive animate-pulse' 
                           : 'bg-secondary'
-                      }`}
+                      } ${showResults ? 'animate-fade-in' : ''}`}
+                      style={showResults ? { animationDelay: `${0.8 + index * 0.1}s`, animationFillMode: 'both' } : {}}
                     >
                       <div className="flex items-center gap-3">
                         {showResults && index === 0 && player.votes > 0 && (
