@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Crown, AlertCircle } from "lucide-react";
+import { Users, Crown, AlertCircle, Copy, Link as LinkIcon, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 interface Player {
@@ -331,6 +331,25 @@ const Game = () => {
     // No need to navigate here - the subscription will handle it for all users
   };
 
+  const handleLeaveGame = async () => {
+    if (!currentPlayer || !roomCode) return;
+
+    await supabase
+      .from("players")
+      .delete()
+      .eq("id", currentPlayer.id);
+
+    localStorage.removeItem(`player_${roomCode}`);
+    toast.success("Left the game");
+    navigate("/");
+  };
+
+  const copyGameLink = () => {
+    const gameUrl = `${window.location.origin}/game/${roomCode}`;
+    navigator.clipboard.writeText(gameUrl);
+    toast.success("Game link copied!");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -380,6 +399,25 @@ const Game = () => {
               <h2 className="text-2xl font-bold">Lobby</h2>
             </div>
 
+            {/* Shareable Link */}
+            <div className="mb-6 p-4 bg-secondary/50 rounded-2xl">
+              <div className="flex items-center gap-2 mb-2">
+                <LinkIcon className="w-4 h-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">Share this game</p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/game/${roomCode}`}
+                  className="flex-1 px-3 py-2 text-sm bg-background rounded-lg border border-border"
+                />
+                <Button onClick={copyGameLink} size="sm" variant="outline">
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-3 mb-6">
               {players.map((player) => (
                 <div
@@ -417,16 +455,38 @@ const Game = () => {
                   </div>
                 </div>
 
-                {players.length >= 3 && (
-                  <Button onClick={handleStartGame} className="w-full" size="lg">
-                    Start Game
+                <div className="space-y-3">
+                  {players.length >= 3 && (
+                    <Button onClick={handleStartGame} className="w-full" size="lg">
+                      Start Game
+                    </Button>
+                  )}
+                  <Button 
+                    onClick={handleEndGame} 
+                    className="w-full" 
+                    variant="destructive"
+                    size="lg"
+                  >
+                    End Game
                   </Button>
-                )}
+                </div>
               </>
             )}
 
+            {hostPlayerId && currentPlayer.id !== hostPlayerId && (
+              <Button 
+                onClick={handleLeaveGame} 
+                className="w-full" 
+                variant="outline"
+                size="lg"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Leave Game
+              </Button>
+            )}
+
             {players.length < 3 && (
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="text-center text-sm text-muted-foreground mt-4">
                 Need at least 3 players to start
               </p>
             )}
