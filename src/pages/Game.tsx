@@ -385,15 +385,20 @@ const Game = () => {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex-1 text-center">
-            <h1 className="text-4xl font-bold mb-2">Room: {game.room_code}</h1>
-            <p className="text-muted-foreground">
-              {game.status === "waiting" ? "Waiting for players..." : "Game in progress"}
-            </p>
-          </div>
-          {game.status === "waiting" && (
-            <div className="absolute top-6 right-6">
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold mb-2">Room: {game.room_code}</h1>
+          <p className="text-muted-foreground">
+            {game.status === "waiting" ? "Waiting for players..." : "Game in progress"}
+          </p>
+        </div>
+
+        {game.status === "waiting" && (
+          <Card className="p-8 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Users className="w-8 h-8 text-primary" />
+                <h2 className="text-2xl font-bold">Lobby</h2>
+              </div>
               {hostPlayerId && currentPlayer.id === hostPlayerId ? (
                 <Button 
                   onClick={handleEndGame} 
@@ -409,18 +414,9 @@ const Game = () => {
                   size="sm"
                 >
                   <LogOut className="w-4 h-4 mr-2" />
-                  Leave Game
+                  Leave
                 </Button>
               )}
-            </div>
-          )}
-        </div>
-
-        {game.status === "waiting" && (
-          <Card className="p-8 mb-8">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <Users className="w-8 h-8 text-primary" />
-              <h2 className="text-2xl font-bold">Lobby</h2>
             </div>
 
             {/* Shareable Link */}
